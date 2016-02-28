@@ -1,0 +1,229 @@
+#!/bin/python
+
+import argparse
+import collections
+import sys
+import os
+import datetime
+import time
+
+import math as M
+
+parser = argparse.ArgumentParser(description="Python awk-like", add_help=False)
+
+parser.add_argument("-s", "--sep", default="\t", help="set list separator")
+parser.add_argument("-j", "--join", default=None, help="set list character")
+
+parser.add_argument("-x", "--execute", default=None, help="code to exec after every line")
+parser.add_argument("-i", "--init", default=None, help="code to run once")
+parser.add_argument("-f", "--final", default=None, help="code to run at end")
+parser.add_argument("-h", "--help", nargs="?", default=None, help="show help message")
+
+parser.add_argument("code", default=None, nargs="?", help="the code to eval")
+
+args = parser.parse_args()
+
+if not any([args.execute, args.init, args.final, args.code]) or args.help:
+    parser.print_help(sys.stderr)
+    sys.exit(0)
+
+SEP = args.sep
+JOIN = args.sep if args.join is None else args.join
+
+FAIL_ON_EMPTY = False
+IGNORE_ON_EMPTY = False
+
+FAIL_ON_WRONG_TYPE = False
+
+class extlist(list):
+
+    def __getitem__(listobj, index):
+        if isinstance(index, str):
+            try:
+                index = int(index)
+            except ValueError:
+                # Oh well, it was worth a shot.
+                pass
+
+        if isinstance(index, int):
+            try:
+                return super().__getitem__(index)
+            except IndexError:
+                return None
+
+        elif isinstance(index, slice):
+            return super().__getitem__(index)
+            # Not using try, as slices never seem to return IndexErrors, just a
+            # blank list. Re-add it if this seems to be a problem.
+
+        elif isinstance(index, tuple):
+            out = []
+            for i in index:
+                if isinstance(i, int):
+                    out.append(listobj[i])
+                elif isinstance(i, slice):
+                    out.append(JOIN.join(listobj[i]))
+
+                elif isinstance(i, str):
+                    out.append(i)
+
+                else:
+                    print("index: {}".format(index))
+                    print("i: {}".format(i))
+                    raise TypeError("Tried to get invalid index of list inside extended getitem")
+
+            return out
+
+        else:
+            print("listobj: {}".format(listobj))
+            print("index: {}".format(index))
+            raise TypeError("Tried to get invalid index of list")
+
+        
+
+
+def tostr(line):
+
+    if isinstance(line, str):
+        return line
+
+    elif isinstance(line, int):
+        return str(line)
+
+    elif isinstance(line, collections.Iterable):
+        if not all(line):
+            if FAIL_ON_EMPTY:
+                sys.stderr.write("Some values are falsey here\n")
+                sys.stderr.write("This can be caused by incorrect array indices\n")
+                sys.stderr.write("Printed line below...\n")
+                sys.stderr.write(line.__repr__())
+                sys.stderr.write("\n")
+                sys.exit(1)
+            elif IGNORE_ON_EMPTY:
+                return
+            else:
+                line = [z for z in line if z is not None]
+
+        line = [tostr(x) for x in line]
+
+        return JOIN.join(line)
+    elif line is None:
+        return None
+    else:
+        return line.__str__()
+
+def pprint(thing):
+    try:
+        sys.stdout.write((tostr(thing) + "\n"))
+    except TypeError:
+        # Thing is likely none type.
+        pass
+
+def H(bytenum,prec=None):
+    try:
+        bytenum = int(bytenum)
+    except ValueError:
+        try:
+            bytenum = float(bytenum)
+        except ValueError:
+            if FAIL_ON_WRONG_TYPE:
+                raise
+            else:
+                return None
+
+    if bytenum < 1024 and prec is None:
+        prec = 0
+    else:
+        prec = 1
+        
+
+
+
+    prefixes = ["", "K", "M", "G", "T", "P", "E", "Z", "Y"]
+    index = 0
+    while bytenum / 1024**index > 1024:
+        index += 1
+
+    return "{:.{}f}{}B".format(bytenum / 1024**index, prec, prefixes[index])
+
+def Hs(epoch, fmt="%a %b %y %H:%M"):
+    timeobj = datetime.datetime.fromtimestamp(int(epoch))
+
+    return timeobj.strftime(fmt)
+
+def Htd(t1, t2):
+    t1 = float(t1)
+    t2 = float(t2)
+
+    seconds = abs(t1 - t2)
+    suffixes = ["second", "minute", "hour", "day", "week", "month", "year"]
+    div = [60, 60 , 24, 7, 4, 12] # Not perfect, but close enough
+
+    index = 0 
+    while seconds > div[index]:
+        seconds /= div[index]
+        index += 1
+        if index >= len(div):
+            break
+
+    seconds = int(seconds)
+
+    if seconds != 1:
+        suffixes[index] += "s" 
+
+
+    return "{} {} ago".format(seconds, suffixes[index])
+
+def Ago(t):
+    t = float(t)
+
+    return Htd(time.time(), t)
+    
+
+def Bn(path):
+    return os.path.basename(path)
+
+def S(path, modes="s"):
+    out = []
+
+    try:
+        result = os.stat(path)
+    except OSError:
+        return 0
+
+
+    for mode in modes:
+        if mode == "s":
+            out.append(result.st_size)
+
+    if len(modes) == 1:
+        return out[0]
+    
+    return out
+
+A = sys.argv
+
+NR = 1
+
+if args.init is not None:
+    exec(args.init)
+
+while True:
+    l = sys.stdin.readline()
+    if l == "":
+        break
+    l = l.strip()
+
+    L = extlist(l.split(SEP))
+    N = time.time()
+    
+    if args.code is not None:
+        pprint(eval(args.code))
+
+    if args.execute is not None:
+        exec(args.execute)
+
+    NR += 1
+
+if args.final is not None:
+    pprint(eval(args.final))

@@ -1,0 +1,118 @@
+--- Command line arguments ---
+
+-s --sep
+
+    Changes how the input line is separated into list L.
+
+    Uses SEP variable internally, so can be set by an init or execute line that
+    way.
+
+    AWK equivalent: -F on command line, FS=foobar in program
+
+-j --join
+
+    Sets the method to join lists together. All lists (even nested ones) are
+    joined before they are printed. This is usually equal to the separator, but
+    can be changed.
+
+    Internal variable: JOIN
+
+-x --execute
+
+    Sets a line of code to execute after each line has been evaluated. The
+    output will not be displayed, and this will be run using exec, so you can
+    use multiple statements using semicolons.
+
+-i --init
+
+    Code that is run just before input is starting to be parsed. This code may
+    initialise variables, for example.
+
+-f --final
+
+    Code that's run at the very end. This is evaluated, not executed, to make
+    it easier to print variables at the end. This may change, though.
+
+--- Helper Variables ---
+
+NR
+
+    Same meaning as in AWK. Starts at 1, and is incremented after everything
+    (even --execute) code has been run for the line.
+
+A
+
+    Arguments. Set to sys.argv, and allows programs to take in command line
+    arguments.
+
+--- Helper Functions ---
+
+H(bytes, precision=1)
+
+    Converts a number of bytes to a human readable string. First argument is
+    the number, second argument is optional, and defaults to the number of
+    decimal points you want (defaults to 1)
+
+    Attempts to cast the input to an integer, failing that will try a float,
+    and if neither works, will either return None if FAIL_ON_WRONG_TYPE is not
+    set to true, or will re-raise the ValueError if it is.
+
+Hs(epoch, fmt="%a %b %y %H:%M")
+
+    Converts number of seconds since epoch into string, using fmt. Uses
+    strftime.
+
+Htd(time1, time2)
+
+    Returns a human readable string showing how far apart the two times are.
+
+Ago(t)
+
+    Returns a human readable string showing how far ago the time was from now.
+    Calls Htd(time.time(), t)
+
+Bn(path)
+
+    Calls
+
+    os.path.basename(path)
+
+    Finds the last element in a path. Similar to *nix's basename command.
+
+S(path, modes="s")
+
+    Stat. If only one mode is given, it will be returned, but if more than one
+    is given, a list will be returned. Modes is an iterable with the format
+    sequences. See stat(1). At the moment, only s is implemented.
+
+    Modes will be appended to output list in order given, and repeated modes
+    are allowed.
+
+
+
+--- Import Shortcuts ---
+
+M
+
+    math import is imported as M. Note that they may need type casting (to
+    float or int).
+
+--- Config ---
+
+FAIL_ON_WRONG_TYPE
+
+    Raise exception on type error in H() instead of returning None
+
+IGNORE_ON_EMPTY
+
+    If any part of a list is empty when being printed, the whole thing won't be
+    printed. This is useful for conditionally printing part of a line,
+    depending on if something is true.
+
+FAIL_ON_EMPTY
+
+    Like above, but will stop processing and return an error.
+
+SEP, JOIN
+
+    See command line arguments.
